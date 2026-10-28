@@ -45,11 +45,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      # Oct 28 audit (Robbie "Deploy"): "Install tools" took up to 21 min (Oct 26 PM posted ~50 min late).
+      # Cache pip + the Chromium download and the apt packages; fall back to a plain install if a cache step fails.
+      - name: Cache Python packages and browser
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/ms-playwright
+          key: wywo-tools-${{ runner.os }}-v1
+      - name: Install system packages (cached)
+        continue-on-error: true
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: ffmpeg fonts-noto-color-emoji
+          version: "1.0"
       - name: Install tools
+        timeout-minutes: 25
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-color-emoji
+          command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-noto-color-emoji)
           pip install -q playwright numpy soundfile kokoro-onnx pillow
-          python -m playwright install --with-deps chromium
+          python -m playwright install chromium
+          python -c "from playwright.sync_api import sync_playwright as s; p=s().start(); p.chromium.launch().close(); p.stop()" || python -m playwright install --with-deps chromium
       - name: Download the pipeline
         run: curl -sSf -A "wywo-actions" https://whileyouwereoutnews.com/pipeline/wywo-pipeline.tar.gz | tar xz
       - name: Write the script
